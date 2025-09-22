@@ -1,0 +1,2 @@
+﻿Radware CAP OSB Health Check - Server is running
+Timestamp: Static file served successfully

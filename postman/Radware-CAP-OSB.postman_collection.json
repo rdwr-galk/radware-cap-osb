@@ -1,0 +1,234 @@
+﻿{
+  "info": {
+    "name": "Radware CAP OSB v2.12",
+    "description": "Radware Cloud Application Protection Open Service Broker API v2.12 collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "basic",
+    "basic": [
+      {
+        "key": "username",
+        "value": "{{BROKER_USER}}",
+        "type": "string"
+      },
+      {
+        "key": "password",
+        "value": "{{BROKER_PASS}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8080" },
+    { "key": "api_version", "value": "2.12" },
+    { "key": "BROKER_USER", "value": "admin" },
+    { "key": "BROKER_PASS", "value": "secret" },
+    { "key": "instance_id", "value": "inst-{{$randomUUID}}" },
+    { "key": "binding_id", "value": "bind-{{$randomUUID}}" },
+    { "key": "service_id", "value": "cloud-application-protection-service" },
+    { "key": "plan_id", "value": "standard" },
+    { "key": "new_plan_id", "value": "standard" },
+    { "key": "operation_id", "value": "provision-{{instance_id}}-{{$timestamp}}" }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Catalog",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-Broker-API-Version", "value": "{{api_version}}" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v2/catalog",
+          "host": ["{{base_url}}"],
+          "path": ["v2", "catalog"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Provision Instance",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "X-Broker-API-Version", "value": "{{api_version}}" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"service_id\": \"{{service_id}}\",\n  \"plan_id\": \"{{plan_id}}\",\n  \"context\": {\n    \"platform\": \"ibm\",\n    \"region\": \"us-east-1\"\n  },\n  \"parameters\": {\n    \"customerName\": \"Acme Corporation\",\n    \"environment\": \"production\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v2/service_instances/{{instance_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["v2", "service_instances", "{{instance_id}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Provision Instance (Async)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "X-Broker-API-Version", "value": "{{api_version}}" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"service_id\": \"{{service_id}}\",\n  \"plan_id\": \"{{plan_id}}\",\n  \"context\": {\n    \"platform\": \"ibm\",\n    \"region\": \"us-east-1\"\n  },\n  \"parameters\": {\n    \"customerName\": \"Acme Corporation\",\n    \"environment\": \"production\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v2/service_instances/{{instance_id}}?accepts_incomplete=true",
+          "host": ["{{base_url}}"],
+          "path": ["v2", "service_instances", "{{instance_id}}"],
+          "query": [
+            { "key": "accepts_incomplete", "value": "true" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Last Operation",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-Broker-API-Version", "value": "{{api_version}}" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v2/service_instances/{{instance_id}}/last_operation?operation={{operation_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["v2", "service_instances", "{{instance_id}}", "last_operation"],
+          "query": [
+            { "key": "operation", "value": "{{operation_id}}" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Instance",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "X-Broker-API-Version", "value": "{{api_version}}" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"service_id\": \"{{service_id}}\",\n  \"plan_id\": \"{{new_plan_id}}\",\n  \"context\": {\n    \"platform\": \"ibm\",\n    \"region\": \"us-east-1\"\n  },\n  \"parameters\": {\n    \"environment\": \"staging\"\n  },\n  \"previous_values\": {\n    \"plan_id\": \"{{plan_id}}\",\n    \"service_id\": \"{{service_id}}\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v2/service_instances/{{instance_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["v2", "service_instances", "{{instance_id}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Binding",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "X-Broker-API-Version", "value": "{{api_version}}" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"service_id\": \"{{service_id}}\",\n  \"plan_id\": \"{{plan_id}}\",\n  \"bind_resource\": { \"app_guid\": \"app-{{$randomUUID}}\" },\n  \"parameters\": {\n    \"email\": \"user@acme.com\",\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v2/service_instances/{{instance_id}}/service_bindings/{{binding_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["v2", "service_instances", "{{instance_id}}", "service_bindings", "{{binding_id}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete Binding",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "X-Broker-API-Version", "value": "{{api_version}}" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v2/service_instances/{{instance_id}}/service_bindings/{{binding_id}}?service_id={{service_id}}&plan_id={{plan_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["v2", "service_instances", "{{instance_id}}", "service_bindings", "{{binding_id}}"],
+          "query": [
+            { "key": "service_id", "value": "{{service_id}}" },
+            { "key": "plan_id", "value": "{{plan_id}}" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Deprovision Instance",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "X-Broker-API-Version", "value": "{{api_version}}" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v2/service_instances/{{instance_id}}?service_id={{service_id}}&plan_id={{plan_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["v2", "service_instances", "{{instance_id}}"],
+          "query": [
+            { "key": "service_id", "value": "{{service_id}}" },
+            { "key": "plan_id", "value": "{{plan_id}}" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Deprovision Instance (Async)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "X-Broker-API-Version", "value": "{{api_version}}" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v2/service_instances/{{instance_id}}?service_id={{service_id}}&plan_id={{plan_id}}&accepts_incomplete=true",
+          "host": ["{{base_url}}"],
+          "path": ["v2", "service_instances", "{{instance_id}}"],
+          "query": [
+            { "key": "service_id", "value": "{{service_id}}" },
+            { "key": "plan_id", "value": "{{plan_id}}" },
+            { "key": "accepts_incomplete", "value": "true" }
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

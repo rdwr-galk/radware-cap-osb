@@ -1,0 +1,85 @@
+﻿# -------------------------
+# Environment files (keep samples)
+# -------------------------
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.sample
+
+# -------------------------
+# Dependencies
+# -------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# -------------------------
+# Build / Artifacts
+# -------------------------
+dist/
+build/
+coverage/
+lib-cov/
+.nyc_output/
+*.tgz
+
+# -------------------------
+# Caches
+# -------------------------
+.npm/
+.eslintcache
+.cache/
+.parcel-cache/
+.turbo/
+.rollup.cache/
+vite.config.ts.timestamp-*
+pnpm-debug.log*
+
+# -------------------------
+# Logs / Runtime
+# -------------------------
+logs/
+*.log
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# -------------------------
+# REPL / History
+# -------------------------
+.node_repl_history
+
+# -------------------------
+# IDE / Editor
+# -------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.swp
+*.swo
+*~
+*.orig
+
+# -------------------------
+# OS generated
+# -------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# -------------------------
+# Temporary files
+# -------------------------
+tmp/
+temp/
+.tmp/
