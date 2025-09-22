@@ -33,13 +33,13 @@ global.primeRadwareMocks = function(options = {}) {
   nock('https://localhost:9443')
     .put('/api/sdcc/system/entity/users?databaseType=ORIGIN')
     .reply(createUserSuccess ? 200 : 400, 
-           createUserSuccess ? { id: 'u-123', email: 'user@example.com', accountId: 'acc-123' } : { error: 'User creation failed' });
+      createUserSuccess ? { id: 'u-123', email: 'user@example.com', accountId: 'acc-123' } : { error: 'User creation failed' });
 
   // Mock delete user (unbind)
   nock('https://localhost:9443')
     .delete(/\/api\/sdcc\/system\/entity\/users\/.*\?databaseType=ORIGIN/)
     .reply(deleteUserSuccess ? 200 : 404, 
-           deleteUserSuccess ? { message: 'User deleted' } : { error: 'User not found' });
+      deleteUserSuccess ? { message: 'User deleted' } : { error: 'User not found' });
 
   // Mock service plan update (patch)
   nock('https://localhost:9443')
