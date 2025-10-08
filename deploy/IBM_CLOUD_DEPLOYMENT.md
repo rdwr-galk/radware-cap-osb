@@ -173,8 +173,8 @@ The application provides several monitoring endpoints:
 ### Common Issues
 
 1. **Authentication Failures**
-   - Verify OSB credentials are set correctly
-   - Check that basic auth is properly configured
+   - Verify IBM CRN credentials are set correctly
+   - Check JWT Bearer authentication configuration
 
 2. **Database Connection Issues**
    - Ensure Cloudant service is created and bound

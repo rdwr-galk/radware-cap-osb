@@ -10,7 +10,7 @@ const nock = require('nock');
 describe('IBM IAM JWT Authentication', () => {
   let mockJWKS;
   let mockPrivateKey;
-  let mockPublicKey;
+  // mockPublicKey is part of the test setup but not directly referenced
 
   beforeAll(async () => {
     // Mock JWT keys for testing
@@ -85,7 +85,7 @@ describe('IBM IAM JWT Authentication', () => {
         exp: Math.floor(Date.now() / 1000) + 3600
       };
 
-      const token = jwt.sign(validPayload, mockPrivateKey, {
+      jwt.sign(validPayload, mockPrivateKey, {
         algorithm: 'RS256',
         keyid: 'test-key-id'
       });
@@ -208,21 +208,21 @@ describe('IBM IAM JWT Authentication', () => {
     });
   });
 
-  describe('Development Mode Fallback', () => {
-    it('should use basic auth in test environment', () => {
-      // Test environment should use basic auth by default
+  describe('JWT Authentication Mode', () => {
+    it('should use JWT Bearer CRN authentication', () => {
+      // JWT authentication is now the only supported mode
       expect(process.env.NODE_ENV).toBe('test');
-      expect(process.env.FORCE_JWT_AUTH).toBeOneOf(['false', undefined]);
+      expect(process.env.IBM_BROKER_CRN).toBeTruthy();
     });
 
-    it('should validate basic auth credentials format', () => {
-      const username = process.env.OSB_BASIC_AUTH_USER || 'admin';
-      const password = process.env.OSB_BASIC_AUTH_PASS || 'secret';
+    it('should validate IBM authentication configuration', () => {
+      const brokerCrn = process.env.IBM_BROKER_CRN;
+      const accountId = process.env.IBM_ACCOUNT_ID;
       
-      expect(username).toBeTruthy();
-      expect(password).toBeTruthy();
-      expect(username.length).toBeGreaterThan(0);
-      expect(password.length).toBeGreaterThan(0);
+      expect(brokerCrn).toBeTruthy();
+      expect(accountId).toBeTruthy();
+      expect(brokerCrn).toMatch(/^crn:v1:bluemix:public:/);
+      expect(accountId.length).toBeGreaterThan(0);
     });
   });
 

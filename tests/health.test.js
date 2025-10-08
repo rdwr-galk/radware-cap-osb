@@ -168,7 +168,6 @@ describe('Health Check Endpoint', () => {
     it('should detect high memory usage', async () => {
       // This test is tricky to simulate without actually consuming memory
       // In a real scenario, you might need to mock process.memoryUsage()
-      const originalMemUsage = process.memoryUsage;
       
       // Mock high memory usage (90% of heap)
       jest.spyOn(process, 'memoryUsage').mockReturnValue({

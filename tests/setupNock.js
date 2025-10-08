@@ -11,7 +11,6 @@ function setupIBMIAMMocks() {
 
   // Mock jwks-rsa client key retrieval
   const jwksRsa = require('jwks-rsa');
-  const originalClient = jwksRsa;
   
   // Mock the client to return our test key
   if (!global.jwksClientMocked) {
@@ -36,8 +35,6 @@ function setupIBMIAMMocks() {
 // Prime mock responses for Radware API
 global.primeRadwareMocks = function(options = {}) {
   const {
-    provisionDelay = 100,
-    deprovisionDelay = 100,
     createUserSuccess = true,
     deleteUserSuccess = true
   } = options;

@@ -7,7 +7,7 @@ Node.js (Express) Open Service Broker for Radware Cloud Application Protection (
 - OSB v2.12: Catalog, provision, update (PATCH), bind, unbind, deprovision, last_operation.
 - Radware Integration: Unified Account + CWAF Service via /api/sdcc/system/entity/*.
 - Async Operations: Optional 202 flows with /last_operation polling.
-- Security: Basic Auth, Helmet headers, structured logging (Pino) with redaction.
+- Security: JWT Bearer CRN authentication, Helmet headers, structured logging (Pino) with redaction.
 - Health: /health endpoint (no auth).
 - DX: Postman collection, pretty logs (pino-pretty), dev/prod PowerShell scripts.
 
@@ -49,9 +49,9 @@ Environment variables (validated in src/config.js). Required are marked.
   NODE_ENV=development
   LOG_LEVEL=info
 
-  # OSB Basic Auth (Required)
-  BROKER_USER=__set__
-  BROKER_PASS=__set__
+  # IBM Cloud Partner Center Authentication (Required)
+  IBM_BROKER_CRN=crn:v1:bluemix:public:cap:global:::
+  IBM_ACCOUNT_ID=__account_id__
 
   # Dashboard (Required, absolute URL w/o trailing slash)
   DASHBOARD_BASE=https://portal.example.com/cap
@@ -75,8 +75,9 @@ Tip: URLs must start with http:// or https:// (enforced). No trailing slashes.
 -------------------------------------------------------------------------------
 # API
 All OSB routes require:
-- Basic Auth (BROKER_USER / BROKER_PASS)
+- JWT Bearer CRN token (IBM IAM authentication)
 - Header X-Broker-API-Version: 2.12
+- Header Authorization: Bearer <jwt-token>
 
 [Endpoints]
   GET    /v2/catalog
@@ -214,7 +215,7 @@ src/
   store/
     memoryStore.js    # In-memory store (instances/bindings/operations)
   middlewares/
-    basicAuth.js      # Basic authentication (constant-time compare, redacted logs)
+    ibmAuth.js        # IBM IAM JWT authentication (Bearer CRN token validation)
   utils/
     logger.js         # Pino logger wrapper (deep redaction, error serialization)
 scripts/
@@ -229,19 +230,19 @@ Persistence: Current store is in-memory. For production, replace with a DB (mana
 
 -------------------------------------------------------------------------------
 # SECURITY
-- Auth: Basic Auth on all OSB routes; /health is public.
+- Auth: JWT Bearer CRN authentication on all OSB routes; /health is public.
 - Version Gate: X-Broker-API-Version enforced to 2.12.
 - Headers: Helmet enabled; add CSP if serving UI.
 - Logging: Pino with secret redaction; safe error serialization.
 - Transport: Use HTTPS in production (reverse proxy/ingress). If terminating TLS in-app, set SSL_CERT_FILE & SSL_KEY_FILE.
 
 -------------------------------------------------------------------------------
-# DEPLOYMENT (IBM HOSTING)
+# DEPLOYMENT (IBM CLOUD PARTNER CENTER)
 You: code, Postman, .env.sample, DB schema/migrations (if using DB), runbooks.
 IBM (host): runtime (Node 18+), secrets, managed DB, HTTPS, logging, monitoring.
 
 Steps:
-  1) Provision env + secrets (BROKER_USER/PASS, RADWARE_*, DASHBOARD_BASE).
+  1) Provision env + secrets (IBM_BROKER_CRN, IBM_ACCOUNT_ID, RADWARE_*, DASHBOARD_BASE).
   2) npm ci → run with NODE_ENV=production.
   3) Front with HTTPS reverse proxy.
   4) Monitor 5xx rate & latency.
@@ -250,7 +251,9 @@ Steps:
 -------------------------------------------------------------------------------
 # TROUBLESHOOTING
 - 412 Precondition Failed: Missing/invalid X-Broker-API-Version (2.12 required).
-- 401/403: Invalid Basic Auth.
+- 401/403: Invalid JWT Bearer token or CRN mismatch.
+// src/store/dbStore.js or src/store/cloudantStore.js
+// IBM Cloud typically uses Cloudant, PostgreSQL, or Redis
 - 409 on provision/bind: Resource exists with different attributes (idempotency).
 - 422: Another operation in progress; poll /last_operation.
 - 5xx: Broker wraps Radware errors; check gateway + radwareApi logs.

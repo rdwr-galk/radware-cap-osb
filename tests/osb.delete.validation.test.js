@@ -4,10 +4,7 @@ const app = require('../server');
 const { getBearerAuth } = require('./testJwtUtil');
 const memoryStore = require('../src/store/memoryStore');
 
-function basicAuth() {
-  const pair = Buffer.from('admin:secret').toString('base64');
-  return `Basic ${pair}`;
-}
+// JWT Bearer authentication is now the only supported authentication method
 const API = { ver: { 'X-Broker-API-Version': '2.12' } };
 const AUTH = { Authorization: getBearerAuth() };
 
