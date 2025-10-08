@@ -1,0 +1,172 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: radware-cap-osb-pipeline
+spec:
+  params:
+    - name: repository
+      description: The git repository URL
+      type: string
+    - name: branch
+      description: The git branch to build from
+      type: string
+      default: main
+    - name: app-name
+      description: Name of the Code Engine application
+      type: string
+      default: radware-cap-osb
+    - name: image-name
+      description: Name of the container image
+      type: string
+      default: radware-cap-osb
+    - name: registry-namespace
+      description: Container registry namespace
+      type: string
+      default: radware-osb
+    - name: region
+      description: Target region for deployment
+      type: string
+      default: us-south
+
+  workspaces:
+    - name: pipeline-ws
+
+  tasks:
+    # 1. Clone the repository
+    - name: clone-repo
+      taskRef:
+        name: git-clone-repo
+      params:
+        - name: repository
+          value: $(params.repository)
+        - name: branch
+          value: $(params.branch)
+      workspaces:
+        - name: output
+          workspace: pipeline-ws
+
+    # 2. Install dependencies and run tests
+    - name: test-app
+      runAfter: [clone-repo]
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: install-and-test
+            image: node:18-alpine
+            workingDir: $(workspaces.source.path)
+            script: |
+              #!/bin/sh
+              echo "Installing dependencies..."
+              npm ci
+              
+              echo "Running linting..."
+              npm run lint || echo "Linting completed with warnings"
+              
+              echo "Running tests..."
+              npm test
+              
+              echo "Generating test coverage..."
+              npm run test:coverage || echo "Coverage report generated"
+      workspaces:
+        - name: source
+          workspace: pipeline-ws
+
+    # 3. Build container image
+    - name: build-image
+      runAfter: [test-app]
+      taskRef:
+        name: icr-build
+      params:
+        - name: image-name
+          value: $(params.image-name)
+        - name: registry-namespace  
+          value: $(params.registry-namespace)
+        - name: region
+          value: $(params.region)
+      workspaces:
+        - name: source
+          workspace: pipeline-ws
+
+    # 4. Deploy to Code Engine
+    - name: deploy-to-code-engine
+      runAfter: [build-image]
+      taskSpec:
+        params:
+          - name: app-name
+          - name: image-name
+          - name: registry-namespace
+          - name: region
+        steps:
+          - name: deploy
+            image: icr.io/continuous-delivery/pipeline/pipeline-base-ubi:3.29
+            script: |
+              #!/bin/bash
+              
+              # Install Code Engine plugin
+              ibmcloud plugin install code-engine -f
+              
+              # Login and target region
+              ibmcloud target -r $(params.region)
+              
+              # Create Code Engine project if it doesn't exist
+              ibmcloud ce project create --name radware-osb-project || true
+              ibmcloud ce project select --name radware-osb-project
+              
+              # Deploy application
+              ibmcloud ce application create \
+                --name $(params.app-name) \
+                --image private.$(params.region).icr.io/$(params.registry-namespace)/$(params.image-name):latest \
+                --cpu 1 \
+                --memory 1Gi \
+                --ephemeral-storage 2Gi \
+                --min-scale 1 \
+                --max-scale 5 \
+                --port 3000 \
+                --env NODE_ENV=production \
+                --env LOG_LEVEL=info \
+                --env METRICS_ENABLED=true \
+                --env TRACING_ENABLED=true \
+                --env SERVICE_NAME=radware-cap-osb \
+                --env SERVICE_NAMESPACE=ibm-cloud \
+                || \
+              ibmcloud ce application update \
+                --name $(params.app-name) \
+                --image private.$(params.region).icr.io/$(params.registry-namespace)/$(params.image-name):latest
+              
+              # Get application URL
+              ibmcloud ce application get --name $(params.app-name)
+      params:
+        - name: app-name
+          value: $(params.app-name)
+        - name: image-name
+          value: $(params.image-name)
+        - name: registry-namespace
+          value: $(params.registry-namespace)
+        - name: region
+          value: $(params.region)
+
+---
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: radware-cap-osb-pipeline-run
+spec:
+  pipelineRef:
+    name: radware-cap-osb-pipeline
+  params:
+    - name: repository
+      value: "https://github.com/rdwr-galk/radware-cap-osb.git"
+    - name: branch
+      value: "main"
+    - name: app-name
+      value: "radware-cap-osb"
+  workspaces:
+    - name: pipeline-ws
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi

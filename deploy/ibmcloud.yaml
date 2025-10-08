@@ -1,0 +1,62 @@
+version: 1.0
+name: radware-cap-osb
+region: us-south
+route: radware-cap-osb
+
+build:
+  commands: |
+    npm ci
+    npm run test
+    
+deploy:
+  buildpack: sdk-for-nodejs
+  command: npm start
+  disk: 1G
+  instances: 2
+  memory: 512M
+  
+  env:
+    NODE_ENV: production
+    LOG_LEVEL: info
+    LOG_DIR: /logs
+    
+    # OSB Configuration
+    OSB_BASIC_AUTH_USER: ${OSB_BASIC_AUTH_USER}
+    OSB_BASIC_AUTH_PASS: ${OSB_BASIC_AUTH_PASS}
+    
+    # Cloudant Database
+    CLOUDANT_URL: ${CLOUDANT_URL}
+    CLOUDANT_IAM_APIKEY: ${CLOUDANT_IAM_APIKEY}
+    CLOUDANT_DATABASE_NAME: radware_cap_osb
+    
+    # Radware API
+    RADWARE_API_BASE_URL: ${RADWARE_API_BASE_URL}
+    RADWARE_API_TOKEN: ${RADWARE_API_TOKEN}
+    
+    # Security
+    ENABLE_CORS: false
+    RATE_LIMIT_WINDOW_MS: 900000
+    RATE_LIMIT_MAX: 100
+    BODY_LIMIT_KB: 1024
+    
+    # Observability
+    METRICS_ENABLED: true
+    TRACING_ENABLED: true
+    JAEGER_ENDPOINT: ${JAEGER_ENDPOINT}
+    SERVICE_NAME: radware-cap-osb
+    SERVICE_NAMESPACE: ibm-cloud
+    
+  services:
+    - name: cloudant-service
+      plan: lite
+    - name: logdna-service
+      plan: lite
+    
+  health-check-type: http
+  health-check-http-endpoint: /health
+  
+  routes:
+    - route: radware-cap-osb.${CF_DOMAIN}
+    
+  docker:
+    image: node:18-alpine

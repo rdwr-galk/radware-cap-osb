@@ -1,0 +1,49 @@
+---
+applications:
+- name: radware-cap-osb
+  memory: 512M
+  disk_quota: 1G
+  instances: 2
+  buildpacks:
+    - sdk-for-nodejs
+  command: npm start
+  
+  env:
+    NODE_ENV: production
+    LOG_LEVEL: info
+    
+    # OSB Configuration - Set via CLI or manifest
+    # cf set-env radware-cap-osb OSB_BASIC_AUTH_USER <username>
+    # cf set-env radware-cap-osb OSB_BASIC_AUTH_PASS <password>
+    
+    # Cloudant Database - Bind service or set manually
+    # cf bind-service radware-cap-osb cloudant-service
+    # cf set-env radware-cap-osb CLOUDANT_URL <url>
+    # cf set-env radware-cap-osb CLOUDANT_IAM_APIKEY <key>
+    CLOUDANT_DATABASE_NAME: radware_cap_osb
+    
+    # Radware API - Set via CLI
+    # cf set-env radware-cap-osb RADWARE_API_BASE_URL <url>
+    # cf set-env radware-cap-osb RADWARE_API_TOKEN <token>
+    
+    # Security Configuration
+    ENABLE_CORS: false
+    RATE_LIMIT_WINDOW_MS: 900000
+    RATE_LIMIT_MAX: 100
+    BODY_LIMIT_KB: 1024
+    
+    # Observability
+    METRICS_ENABLED: true
+    TRACING_ENABLED: true
+    SERVICE_NAME: radware-cap-osb
+    SERVICE_NAMESPACE: ibm-cloud
+    
+  services:
+    - cloudant-service
+    - logdna-service
+    
+  health-check-type: http
+  health-check-http-endpoint: /health
+  
+  routes:
+    - route: radware-cap-osb.mybluemix.net

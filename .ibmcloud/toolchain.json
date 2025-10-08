@@ -1,0 +1,78 @@
+{
+  "toolchain": {
+    "name": "radware-cap-osb-toolchain",
+    "description": "Radware CAP Open Service Broker v2.12 - Continuous Delivery Toolchain",
+    "template": {
+      "getting_started": {
+        "url": "https://cloud.ibm.com/docs/services/ContinuousDelivery?topic=ContinuousDelivery-getting-started"
+      }
+    }
+  },
+  
+  "services": {
+    "github_integration": {
+      "service_id": "githubconsolidated",
+      "parameters": {
+        "repo_name": "radware-cap-osb",
+        "repo_url": "https://github.com/rdwr-galk/radware-cap-osb",
+        "type": "link",
+        "has_issues": true,
+        "enable_traceability": true
+      }
+    },
+    
+    "pipeline": {
+      "service_id": "pipeline",
+      "parameters": {
+        "services": ["github_integration"],
+        "name": "radware-cap-osb-pipeline",
+        "type": "tekton",
+        "configuration": {
+          "content": {
+            "$text": "tekton-pipeline.yml"
+          },
+          "env": {
+            "PIPELINE_REPO": "github_integration",
+            "PIPELINE_REPO_BRANCH": "main",
+            "APP_NAME": "radware-cap-osb",
+            "REGISTRY_REGION_ID": "us-south",
+            "REGISTRY_NAMESPACE": "radware-osb",
+            "IMAGE_NAME": "radware-cap-osb",
+            "PROD_REGION_ID": "us-south",
+            "PROD_RESOURCE_GROUP": "default"
+          }
+        }
+      }
+    },
+    
+    "code_engine": {
+      "service_id": "codeengine",
+      "parameters": {
+        "name": "radware-cap-osb-app",
+        "region": "us-south",
+        "resource_group": "default",
+        "project_name": "radware-osb-project"
+      }
+    }
+  },
+  
+  "form": {
+    "pipeline": {
+      "parameters": {
+        "prod-app-name": "radware-cap-osb"
+      },
+      "schema": {
+        "$schema": "http://json-schema.org/draft-04/schema#",
+        "type": "object",
+        "properties": {
+          "prod-app-name": {
+            "description": "The name of the Code Engine application",
+            "type": "string",
+            "pattern": "\\S"
+          }
+        },
+        "required": ["prod-app-name"]
+      }
+    }
+  }
+}
