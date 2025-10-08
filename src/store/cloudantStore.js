@@ -548,6 +548,25 @@ class CloudantStore {
       return false;
     }
   }
+
+  /**
+   * Ping method for health checks
+   * Tests database connectivity and accessibility
+   */
+  async ping() {
+    try {
+      if (!this.client) {
+        return false;
+      }
+      
+      // Simple database info call to test connectivity
+      await this.client.getDatabaseInformation({ db: this.dbName });
+      return true;
+    } catch (error) {
+      logger.warn({ error: error.message, dbName: this.dbName }, 'Cloudant ping failed');
+      return false;
+    }
+  }
 }
 
 module.exports = new CloudantStore();

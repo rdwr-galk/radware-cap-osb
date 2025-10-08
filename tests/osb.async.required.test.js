@@ -1,15 +1,14 @@
 const request = require('supertest');
 const app = require('../server');
+const { getBearerAuth } = require('./testJwtUtil');
 
-function auth() {
-  return 'Basic ' + Buffer.from('admin:secret').toString('base64');
-}
+// Using JWT Bearer authentication - getBearerAuth() from testJwtUtil
 
 describe('OSB AsyncRequired when ENABLE_ASYNC=true', () => {
   test('provision without accepts_incomplete -> 422', async () => {
     const res = await request(app)
       .put('/v2/service_instances/inst-async')
-      .set('Authorization', auth())
+      .set('Authorization', getBearerAuth())
       .set('X-Broker-API-Version', '2.12')
       .send({
         service_id: 'cloud-application-protection-service',

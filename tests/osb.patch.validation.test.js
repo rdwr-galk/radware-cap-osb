@@ -2,10 +2,7 @@ const request = require('supertest');
 const app = require('../server');
 const memoryStore = require('../src/store/memoryStore');
 const radwareApi = require('../src/services/radwareApi');
-
-function auth() {
-  return 'Basic ' + Buffer.from('admin:secret').toString('base64');
-}
+const { getBearerAuth } = require('./testJwtUtil');
 
 describe('OSB PATCH update (plan change)', () => {
   beforeEach(() => {
@@ -31,7 +28,7 @@ describe('OSB PATCH update (plan change)', () => {
 
     const res = await request(app)
       .patch(`/v2/service_instances/${instId}`)
-      .set('Authorization', auth())
+      .set('Authorization', getBearerAuth())
       .set('X-Broker-API-Version', '2.12')
       .send({
         service_id: 'cloud-application-protection-service',
@@ -62,7 +59,7 @@ describe('OSB PATCH update (plan change)', () => {
 
     const res = await request(app)
       .patch(`/v2/service_instances/${instId}`)
-      .set('Authorization', auth())
+      .set('Authorization', getBearerAuth())
       .set('X-Broker-API-Version', '2.12')
       .send({
         service_id: 'cloud-application-protection-service',

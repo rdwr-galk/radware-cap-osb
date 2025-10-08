@@ -10,7 +10,7 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const config = require('./src/config');
 const logger = require('./src/utils/logger');
-const basicAuthMiddleware = require('./src/middlewares/basicAuth');
+const { securityCompliantAuth } = require('./src/middlewares/ibmAuth');
 const osbRoutes = require('./src/routes/osb');
 const { initializeTracing, tracingMiddleware } = require('./middleware/tracing');
 const { httpLoggingMiddleware, errorLoggingMiddleware, setupGracefulShutdown } = require('./middleware/logging');
@@ -124,41 +124,116 @@ const bodyLimit = `${config.security.bodyLimitKb}kb`;
 app.use(express.json({ limit: bodyLimit }));
 app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
 
-// Health check endpoint (no auth required) - enhanced
+// Enhanced health check endpoint (no auth required)
 app.get('/health', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   
+  const startTime = Date.now();
   const health = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     service: 'radware-cap-osb',
     version,
-    database: 'unknown',
-    radware: 'unknown'
+    uptime: Math.floor(process.uptime()),
+    checks: {
+      database: 'unknown',
+      radware: 'unknown',
+      memory: 'ok'
+    }
   };
 
+  const issues = [];
+
   try {
-    // Check database connectivity
-    if (config.database.type === 'cloudant') {
-      const dbConnected = await store.ping();
-      health.database = dbConnected ? 'connected' : 'disconnected';
-    } else {
-      health.database = 'memory';
+    // Memory usage check
+    const memUsage = process.memoryUsage();
+    const totalMem = memUsage.heapTotal / 1024 / 1024; // MB
+    const usedMem = memUsage.heapUsed / 1024 / 1024; // MB
+    const memPercent = (usedMem / totalMem) * 100;
+    
+    health.checks.memory = {
+      status: memPercent > 90 ? 'critical' : memPercent > 75 ? 'warning' : 'ok',
+      heapUsed: Math.round(usedMem),
+      heapTotal: Math.round(totalMem),
+      percentage: Math.round(memPercent)
+    };
+
+    // Database connectivity check
+    try {
+      if (config.database.type === 'cloudant') {
+        const startDb = Date.now();
+        const dbConnected = await store.ping();
+        const dbLatency = Date.now() - startDb;
+        
+        if (dbConnected) {
+          health.checks.database = {
+            status: 'ok',
+            type: 'cloudant',
+            latency: dbLatency,
+            database: config.database.cloudant.database
+          };
+        } else {
+          health.checks.database = { status: 'failed', type: 'cloudant' };
+          issues.push('Database connection failed');
+        }
+      } else {
+        health.checks.database = { status: 'ok', type: 'memory' };
+      }
+    } catch (error) {
+      health.checks.database = { status: 'error', error: error.message };
+      issues.push(`Database error: ${error.message}`);
     }
 
-    // Check Radware API connectivity (simple ping)
-    const radwareApi = require('./src/services/radwareApi');
+    // Radware API connectivity check
     try {
-      await radwareApi.ping();
-      health.radware = 'reachable';
+      const startApi = Date.now();
+      const radwareApi = require('./src/services/radwareApi');
+      const apiReachable = await radwareApi.ping();
+      const apiLatency = Date.now() - startApi;
+      
+      if (apiReachable) {
+        health.checks.radware = {
+          status: 'ok',
+          endpoint: config.radware.apiBase,
+          latency: apiLatency
+        };
+      } else {
+        health.checks.radware = { 
+          status: 'failed', 
+          endpoint: config.radware.apiBase 
+        };
+        issues.push('Radware API unreachable');
+      }
     } catch (error) {
-      health.radware = 'unreachable';
+      health.checks.radware = { 
+        status: 'error', 
+        endpoint: config.radware.apiBase,
+        error: error.message 
+      };
+      issues.push(`Radware API error: ${error.message}`);
     }
+
+    // Calculate total response time
+    health.responseTime = Date.now() - startTime;
 
     // Determine overall status
-    if (health.database === 'disconnected' || health.radware === 'unreachable') {
+    const criticalIssues = Object.values(health.checks).filter(
+      check => check.status === 'failed' || check.status === 'error'
+    );
+    
+    if (criticalIssues.length > 0) {
       health.status = 'degraded';
+      health.issues = issues;
       return res.status(503).json(health);
+    }
+
+    const warningIssues = Object.values(health.checks).filter(
+      check => check.status === 'warning'
+    );
+    
+    if (warningIssues.length > 0) {
+      health.status = 'warning';
+      health.warnings = issues;
     }
 
     res.status(200).json(health);
@@ -169,8 +244,15 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// Apply basic auth middleware to all v2 routes
-app.use('/v2', basicAuthMiddleware);
+// Prometheus metrics endpoint (no auth required)
+app.get('/metrics', (req, res) => {
+  const prometheus = require('./metrics/prometheus');
+  return prometheus.getMetrics(req, res);
+});
+
+// Apply Security Compliant Authentication - Bearer CRN ONLY
+// Basic authentication is deprecated and no longer supported due to security requirements
+app.use('/v2', securityCompliantAuth());
 
 // OSB API routes
 app.use('/v2', osbRoutes);

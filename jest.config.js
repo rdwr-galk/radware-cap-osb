@@ -2,7 +2,7 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
   setupFiles: ['<rootDir>/tests/setupEnv.js'],
-  setupFilesAfterEnv: ['<rootDir>/tests/setupNock.js'],
+  setupFilesAfterEnv: ['<rootDir>/tests/setupNock.js', 'jest-extended/all'],
   testTimeout: 30000,
   collectCoverageFrom: [
     'src/**/*.js',

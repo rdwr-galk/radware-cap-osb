@@ -1,4 +1,37 @@
 const nock = require('nock');
+const { mockJWKS, mockKeyId, publicKey } = require('./testJwtUtil');
+
+// Mock IBM IAM JWKS endpoint for JWT validation
+function setupIBMIAMMocks() {
+  // Mock IBM IAM JWKS endpoint
+  nock('https://iam.cloud.ibm.com')
+    .persist()
+    .get('/identity/keys')
+    .reply(200, mockJWKS);
+
+  // Mock jwks-rsa client key retrieval
+  const jwksRsa = require('jwks-rsa');
+  const originalClient = jwksRsa;
+  
+  // Mock the client to return our test key
+  if (!global.jwksClientMocked) {
+    global.jwksClientMocked = true;
+    
+    // Override the getSigningKey method for tests
+    const originalGetSigningKey = jwksRsa.prototype?.getSigningKey;
+    if (originalGetSigningKey) {
+      jwksRsa.prototype.getSigningKey = function(kid, callback) {
+        if (kid === mockKeyId) {
+          callback(null, {
+            getPublicKey: () => publicKey
+          });
+        } else {
+          callback(new Error(`Unable to find key with kid: ${kid}`));
+        }
+      };
+    }
+  }
+}
 
 // Prime mock responses for Radware API
 global.primeRadwareMocks = function(options = {}) {
@@ -51,6 +84,9 @@ beforeAll(() => {
   nock.disableNetConnect();
   // Allow local connections for the test server
   nock.enableNetConnect('127.0.0.1');
+  
+  // Setup IBM IAM mocks for JWT validation
+  setupIBMIAMMocks();
 });
 
 afterEach(() => {

@@ -10,13 +10,13 @@ const logger = require('../utils/logger');
 class RadwareApi {
   constructor() {
     this.apiBase = config.radware.apiBase;
-    this.operatorKey = config.radware.operatorKey;
+    this.apiToken = config.radware.apiToken;
     this.timeout = config.radware.timeout;
     this.retries = config.radware.retries;
 
     const defaultHeaders = {
       'Content-Type': 'application/json',
-      'x-api-key': this.operatorKey
+      'Authorization': `Bearer ${this.apiToken}`
     };
 
     // Optional gateway/system role header if configured
@@ -32,6 +32,30 @@ class RadwareApi {
     });
 
     logger.info({ apiBase: this.apiBase, timeout: this.timeout }, 'RadwareApi initialized');
+  }
+
+  /**
+   * Ping method for health checks
+   * Attempts a simple API call to verify connectivity
+   */
+  async ping() {
+    try {
+      // Try a simple accounts query with minimal data to test connectivity
+      await this.makeRequest({
+        method: 'POST',
+        url: '/api/sdcc/system/entity/accounts?databaseType=ORIGIN',
+        data: { 
+          criteria: [], 
+          projection: ['id'], // minimal projection
+          page: 0, 
+          size: 1 // minimal size
+        }
+      });
+      return true;
+    } catch (error) {
+      logger.warn({ error: error.message }, 'Radware API ping failed');
+      return false;
+    }
   }
 
   async makeRequest(requestConfig, retryCount = 0) {

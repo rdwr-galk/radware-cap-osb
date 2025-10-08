@@ -1,6 +1,7 @@
 // tests/osb.delete.validation.test.js
 const request = require('supertest');
 const app = require('../server');
+const { getBearerAuth } = require('./testJwtUtil');
 const memoryStore = require('../src/store/memoryStore');
 
 function basicAuth() {
@@ -8,7 +9,7 @@ function basicAuth() {
   return `Basic ${pair}`;
 }
 const API = { ver: { 'X-Broker-API-Version': '2.12' } };
-const AUTH = { Authorization: basicAuth() };
+const AUTH = { Authorization: getBearerAuth() };
 
 describe('OSB DELETE validations', () => {
   beforeEach(() => {

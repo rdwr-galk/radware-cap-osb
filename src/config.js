@@ -56,13 +56,24 @@ const config = {
   },
 
   auth: {
-    user: requireEnv('BROKER_USER'),
-    password: requireEnv('BROKER_PASS')
+    // SECURITY COMPLIANCE: Basic authentication deprecated and removed
+    // Bearer CRN authentication enforced exclusively
+    
+    // IBM IAM JWT Authentication (REQUIRED for security compliance)
+    brokerCRN: requireEnv('IBM_BROKER_CRN', 'crn:v1:bluemix:public:radware-cap:us-south:a/7c4d0332e74041ea9bbfc21db410f043::'),
+    expectedIssuer: getEnv('IBM_IAM_ISSUER', 'https://iam.cloud.ibm.com'),
+    expectedAudience: getEnv('IBM_IAM_AUDIENCE', 'osb-broker'),
+    
+    // IBM Account ID for Partner Center integration  
+    ibmAccountId: getEnv('IBM_ACCOUNT_ID', '7c4d0332e74041ea9bbfc21db410f043'),
+    
+    // Deprecated configuration maintained for transition period only
+    _deprecated_basic_auth_notice: 'Basic authentication is deprecated and no longer supported due to security requirements'
   },
 
   radware: {
-    apiBase: normalizeBaseUrl(requireEnv('RADWARE_API_BASE')),
-    operatorKey: requireEnv('RADWARE_OPERATOR_KEY'),
+    apiBase: normalizeBaseUrl(getEnv('RADWARE_API_BASE_URL', 'https://api.radware.com')),
+    apiToken: getEnv('RADWARE_API_TOKEN', ''),
     timeout: toInt(getEnv('RADWARE_TIMEOUT', '10000'), 10000),
     retries: toInt(getEnv('RADWARE_RETRIES', '3'), 3),
     // Optional: system gateway role id (from gateway-system.properties)
@@ -108,13 +119,22 @@ const configSchema = Joi.object({
   }),
   
   auth: Joi.object({
-    user: Joi.string().min(1).required(),
-    password: Joi.string().min(8).required()
+    // IBM IAM JWT Authentication (REQUIRED for security compliance)
+    brokerCRN: Joi.string().min(1).required().messages({
+      'string.empty': 'IBM_BROKER_CRN is required for security compliance',
+      'any.required': 'IBM_BROKER_CRN must be provided - Basic auth is deprecated'
+    }),
+    expectedIssuer: Joi.string().uri().default('https://iam.cloud.ibm.com'),
+    expectedAudience: Joi.string().default('osb-broker'),
+    ibmAccountId: Joi.string().min(1).default('7c4d0332e74041ea9bbfc21db410f043'),
+    
+    // Deprecated field maintained for transition period
+    _deprecated_basic_auth_notice: Joi.string().default('Basic authentication is deprecated and no longer supported due to security requirements')
   }),
   
   radware: Joi.object({
-    apiBase: Joi.string().uri({ scheme: ['http', 'https'] }).required(),
-    operatorKey: Joi.string().min(1).required(),
+    apiBase: Joi.string().uri({ scheme: ['http', 'https'] }).default('https://api.radware.com'),
+    apiToken: Joi.string().allow('').default(''),
     timeout: Joi.number().positive().default(10000),
     retries: Joi.number().min(0).max(10).default(3),
     gatewaySystemRoleId: Joi.string().default('rol_DcbbYkJMtiZmAR45')

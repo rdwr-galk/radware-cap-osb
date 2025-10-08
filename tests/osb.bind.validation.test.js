@@ -1,11 +1,10 @@
 const request = require('supertest');
 const app = require('../server');
+const { getBearerAuth } = require('./testJwtUtil');
 const memoryStore = require('../src/store/memoryStore');
 const nock = require('nock');
 
-function auth() {
-  return 'Basic ' + Buffer.from('admin:secret').toString('base64');
-}
+// Using JWT Bearer authentication - getBearerAuth() from testJwtUtil
 
 describe('OSB Bind validations', () => {
   beforeEach(() => {
@@ -29,7 +28,7 @@ describe('OSB Bind validations', () => {
 
     const res = await request(app)
       .put(`/v2/service_instances/${instId}/service_bindings/b123`)
-      .set('Authorization', auth())
+      .set('Authorization', getBearerAuth())
       .set('X-Broker-API-Version', '2.12')
       .send({
         service_id: 'cloud-application-protection-service',
@@ -63,7 +62,7 @@ describe('OSB Bind validations', () => {
 
     const res = await request(app)
       .put(`/v2/service_instances/${instId}/service_bindings/b123`)
-      .set('Authorization', auth())
+      .set('Authorization', getBearerAuth())
       .set('X-Broker-API-Version', '2.12')
       .send({
         service_id: 'cloud-application-protection-service',
