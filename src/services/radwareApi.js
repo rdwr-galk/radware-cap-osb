@@ -3,25 +3,23 @@
  * Handles all communication with Radware APIs
  */
 
+const loadConfig = require('../config');
 const axios = require('axios');
-const config = require('../config');
 const logger = require('../utils/logger');
 
 class RadwareApi {
-  constructor() {
+  constructor(config) {
     this.apiBase = config.radware.apiBase;
     this.apiToken = config.radware.apiToken;
-    this.timeout = config.radware.timeout;
-    this.retries = config.radware.retries;
+    this.timeout = config.radware.timeout || 10000;
+    this.retries = config.radware.retries || 3;
 
     const defaultHeaders = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${this.apiToken}`
     };
 
-    // Optional gateway/system role header if configured
     if (config.radware.gatewaySystemRoleId) {
-      // Adjust header name if your gateway expects a different one
       defaultHeaders['x-role-ids'] = config.radware.gatewaySystemRoleId;
     }
 
@@ -34,22 +32,19 @@ class RadwareApi {
     logger.info({ apiBase: this.apiBase, timeout: this.timeout }, 'RadwareApi initialized');
   }
 
-  /**
-   * Ping method for health checks
-   * Attempts a simple API call to verify connectivity
-   */
+  // === Factory ===
+  static async newInstance() {
+    const config = await loadConfig();
+    return new RadwareApi(config);
+  }
+
+  // === Basic connectivity check ===
   async ping() {
     try {
-      // Try a simple accounts query with minimal data to test connectivity
       await this.makeRequest({
         method: 'POST',
         url: '/api/sdcc/system/entity/accounts?databaseType=ORIGIN',
-        data: { 
-          criteria: [], 
-          projection: ['id'], // minimal projection
-          page: 0, 
-          size: 1 // minimal size
-        }
+        data: { criteria: [], projection: ['id'], page: 0, size: 1 }
       });
       return true;
     } catch (error) {
@@ -58,6 +53,7 @@ class RadwareApi {
     }
   }
 
+  // === Core request handler ===
   async makeRequest(requestConfig, retryCount = 0) {
     try {
       const response = await this.client(requestConfig);
@@ -69,7 +65,6 @@ class RadwareApi {
         },
         'Radware API request successful'
       );
-
       return response.data;
     } catch (error) {
       const isRetryable = this.isRetryableError(error);
@@ -86,16 +81,13 @@ class RadwareApi {
   }
 
   isRetryableError(error) {
-    if (!error.response) {
-      return true;
-    }
+    if (!error.response) return true;
     const status = error.response.status;
     return status >= 500 || status === 408 || status === 429;
   }
 
   mapError(error) {
     const mapped = new Error();
-
     if (!error.response) {
       mapped.status = 502;
       mapped.description = 'Unable to connect to Radware backend service';
@@ -139,29 +131,22 @@ class RadwareApi {
   }
 
   sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  /**
-   * High-level helper used by OSB provision flow.
-   * CWAF-only (CAP) implementation: create Unified Account, then create CWAF service plan.
-   */
+  // === All your business logic methods ===
   async createAccountOrServiceForInstance({ instanceId, planId, parameters = {} }) {
     logger.info({ instanceId, planId }, 'Creating account and CWAF service (CAP)');
 
     try {
-      // 1) Create Unified Account
       const accountPayload = {
         name: parameters.customerName || `OSB-Instance-${instanceId}`,
         type: parameters.accountType || 'STANDARD',
         description: parameters.accountDescription || `Created via OSB for instance ${instanceId}`
-        // Add legal account fields if needed (e.g., parentId, address)
       };
 
       const accountData = await this.createAccount({ payload: accountPayload });
 
-      // 2) Create CWAF service (CAP) for that account
-      // Map OSB planId -> internal plan fields if required by your backend
       const cwafPayload = {
         accountId: accountData.id,
         type: 'CWAF',
@@ -185,17 +170,13 @@ class RadwareApi {
       const serviceData = await this.createService({ payload: cwafPayload });
 
       logger.info(
-        {
-          instanceId,
-          accountId: accountData.id,
-          serviceId: serviceData.id
-        },
+        { instanceId, accountId: accountData.id, serviceId: serviceData.id },
         'Account and CWAF service created successfully'
       );
 
       return {
         accountId: accountData.id,
-        serviceId: serviceData.id, // store as radwareServiceId by the caller route
+        serviceId: serviceData.id,
         accountData,
         serviceData
       };
