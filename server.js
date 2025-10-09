@@ -316,6 +316,7 @@ app.use((err, req, res, _next) => {
 
   res.status(err && err.status ? err.status : 500).json({ description });
 });
+
 // Setup graceful shutdown handling
 setupGracefulShutdown();
 
