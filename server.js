@@ -319,8 +319,7 @@ app.use((err, req, res, _next) => {
 // Graceful shutdown with cleanup
 let server;
 
-// Setup graceful shutdown handling
-setupGracefulShutdown();
+
 
 // Start server (don't open a port during tests)
 const PORT = config.port;
