@@ -26,17 +26,16 @@ class CloudantStore {
 
       const authenticator = new IamAuthenticator({ apikey: cloudantApiKey });
 
-      this.client = new CloudantV1({
-        authenticator,
-        serviceUrl: cloudantUrl
-      });
+      this.client = CloudantV1.newInstance({ authenticator });
+      this.client.setServiceUrl(cloudantUrl);
 
-      logger.info({ dbName: this.dbName }, ' Cloudant client initialized successfully');
+      logger.info({ dbName: this.dbName }, 'Cloudant client initialized successfully');
     } catch (error) {
       logger.error({ error: error.message }, 'Failed to initialize Cloudant client');
       throw error;
     }
   }
+
 
   async _ensureDatabase() {
     if (this.initialized) return;
