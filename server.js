@@ -8,7 +8,17 @@ const helmet = require('helmet');
 const compression = require('compression');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-const config = require('./src/config');
+const loadConfig = require('./src/config');
+const configPromise = loadConfig();
+configPromise.then(config => {
+  const app = require('./app')(config);
+  app.listen(config.port, () => {
+    console.log(`Server running on port ${config.port}`);
+  });
+}).catch(err => {
+  console.error('Failed to load configuration:', err.message);
+  process.exit(1);
+});
 const logger = require('./src/utils/logger');
 const { securityCompliantAuth } = require('./src/middlewares/ibmAuth');
 const osbRoutes = require('./src/routes/osb');
