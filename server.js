@@ -28,7 +28,17 @@ let server;
     let store;
     if (config.database.type === 'cloudant') {
       store = require('./src/store/cloudantStore');
-      logger.info('Using Cloudant database store');
+      // Test Cloudant connectivity at startup
+      try {
+        const pingResult = await store.ping();
+        if (pingResult) {
+          logger.info('Cloudant database store initialized successfully');
+        } else {
+          logger.warn('Cloudant connection test failed, operations may be affected');
+        }
+      } catch (error) {
+        logger.error({ error: error.message }, 'Cloudant initialization error');
+      }
     } else {
       store = require('./src/store/memoryStore');
       logger.info('Using in-memory store (development only)');
@@ -191,7 +201,8 @@ let server;
         // Radware API connectivity check
         try {
           const startApi = Date.now();
-          const radwareApi = require('./src/services/radwareApi');
+          const RadwareApi = require('./src/services/radwareApi');
+          const radwareApi = await RadwareApi.newInstance();
           const apiReachable = await radwareApi.ping();
           const apiLatency = Date.now() - startApi;
 

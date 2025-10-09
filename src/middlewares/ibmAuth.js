@@ -97,7 +97,7 @@ async function verifyToken(token) {
 /**
  * Validate JWT claims for IBM Cloud Partner Center
  */
-function validateClaims(payload) {
+function validateClaims(payload, config) {
   const errors = [];
 
   // Check required claims
@@ -118,7 +118,7 @@ function validateClaims(payload) {
   }
 
   // Check if token is for the correct broker CRN
-  const expectedCRN = config.auth.brokerCRN;
+  const expectedCRN = config?.auth?.brokerCRN;
   if (expectedCRN && payload.sub !== expectedCRN) {
     errors.push(`Subject mismatch: expected ${expectedCRN}, got ${payload.sub}`);
   }
@@ -143,6 +143,10 @@ function validateClaims(payload) {
 function ibmIamAuth() {
   return async (req, res, next) => {
     try {
+      // Load config for this request
+      const loadConfig = require('../config');
+      const config = await loadConfig();
+      
       const authHeader = req.headers.authorization;
       
       if (!authHeader) {
@@ -190,7 +194,7 @@ function ibmIamAuth() {
       }
 
       // Validate JWT claims
-      const claimErrors = validateClaims(payload);
+      const claimErrors = validateClaims(payload, config);
       if (claimErrors.length > 0) {
         logger.warn('JWT claims validation failed', {
           path: req.path,

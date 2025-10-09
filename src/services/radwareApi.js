@@ -443,4 +443,5 @@ class RadwareApi {
   }
 }
 
-module.exports = new RadwareApi();
+// Export the class, not an instance
+module.exports = RadwareApi;

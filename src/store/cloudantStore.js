@@ -12,16 +12,16 @@ class CloudantStore {
     this.client = null;
     this.dbName = process.env.CLOUDANT_DB || 'radware-osb';
     this.initialized = false;
-    this._initClient();
   }
 
-  _initClient() {
+  async _initClient() {
     try {
       const cloudantUrl = process.env.CLOUDANT_URL;
       const cloudantApiKey = process.env.CLOUDANT_APIKEY;
 
       if (!cloudantUrl || !cloudantApiKey) {
-        throw new Error('CLOUDANT_URL and CLOUDANT_APIKEY environment variables are required');
+        logger.warn('CLOUDANT_URL and CLOUDANT_APIKEY not provided - Cloudant features disabled');
+        return false;
       }
 
       const authenticator = new IamAuthenticator({ apikey: cloudantApiKey });
@@ -30,6 +30,7 @@ class CloudantStore {
       this.client.setServiceUrl(cloudantUrl);
 
       logger.info({ dbName: this.dbName }, 'Cloudant client initialized successfully');
+      return true;
     } catch (error) {
       logger.error({ error: error.message }, 'Failed to initialize Cloudant client');
       throw error;
@@ -37,7 +38,17 @@ class CloudantStore {
   }
 
 
+  async _ensureInitialized() {
+    if (this.client && this.initialized) return;
+    
+    const clientReady = await this._initClient();
+    if (!clientReady) {
+      throw new Error('Cloudant client initialization failed - missing credentials');
+    }
+  }
+
   async _ensureDatabase() {
+    await this._ensureInitialized();
     if (this.initialized) return;
 
     try {
@@ -62,6 +73,9 @@ class CloudantStore {
 
   async ping() {
     try {
+      await this._ensureInitialized();
+      if (!this.client) return false;
+      
       const response = await this.client.getAllDbs();
       return Array.isArray(response.result);
     } catch (error) {
@@ -524,20 +538,18 @@ class CloudantStore {
   }
 
   /**
-   * Ping method for health checks
-   * Tests database connectivity and accessibility
+   * Alternative ping method for health checks using database info
    */
-  async ping() {
+  async healthCheck() {
     try {
-      if (!this.client) {
-        return false;
-      }
+      await this._ensureInitialized();
+      if (!this.client) return false;
       
       // Simple database info call to test connectivity
       await this.client.getDatabaseInformation({ db: this.dbName });
       return true;
     } catch (error) {
-      logger.warn({ error: error.message, dbName: this.dbName }, 'Cloudant ping failed');
+      logger.warn({ error: error.message, dbName: this.dbName }, 'Cloudant health check failed');
       return false;
     }
   }
