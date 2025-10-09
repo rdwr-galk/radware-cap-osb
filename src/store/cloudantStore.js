@@ -3,7 +3,8 @@
  * Production-ready persistent storage implementation for OSB state
  */
 
-const { CloudantV1 } = require('@cloudant/cloudant');
+const { CloudantV1 } = require('@ibm-cloud/cloudant');
+const { IamAuthenticator } = require('ibm-cloud-sdk-core');
 const logger = require('../utils/logger');
 
 class CloudantStore {
@@ -11,23 +12,26 @@ class CloudantStore {
     this.client = null;
     this.dbName = process.env.CLOUDANT_DB || 'radware-osb';
     this.initialized = false;
-    
-    // Initialize client
     this._initClient();
   }
 
   _initClient() {
     try {
       const cloudantUrl = process.env.CLOUDANT_URL;
-      if (!cloudantUrl) {
-        throw new Error('CLOUDANT_URL environment variable is required');
+      const cloudantApiKey = process.env.CLOUDANT_APIKEY;
+
+      if (!cloudantUrl || !cloudantApiKey) {
+        throw new Error('CLOUDANT_URL and CLOUDANT_APIKEY environment variables are required');
       }
 
-      this.client = CloudantV1.newInstance({
-        url: cloudantUrl
+      const authenticator = new IamAuthenticator({ apikey: cloudantApiKey });
+
+      this.client = new CloudantV1({
+        authenticator,
+        serviceUrl: cloudantUrl
       });
 
-      logger.info({ dbName: this.dbName }, 'Cloudant client initialized');
+      logger.info({ dbName: this.dbName }, ' Cloudant client initialized successfully');
     } catch (error) {
       logger.error({ error: error.message }, 'Failed to initialize Cloudant client');
       throw error;
@@ -36,67 +40,38 @@ class CloudantStore {
 
   async _ensureDatabase() {
     if (this.initialized) return;
-    
+
     try {
-      // Try to create database (will fail if exists, which is fine)
+      // Try to create database (ignore if it already exists)
       try {
         await this.client.putDatabase({ db: this.dbName });
         logger.info({ dbName: this.dbName }, 'Created Cloudant database');
       } catch (error) {
         if (error.status === 412) {
-          logger.debug({ dbName: this.dbName }, 'Database already exists');
+          logger.debug({ dbName: this.dbName }, 'ℹ Database already exists');
         } else {
           throw error;
         }
       }
 
-      // Create indexes for better query performance
-      await this._createIndexes();
-      
       this.initialized = true;
-      logger.info({ dbName: this.dbName }, 'Cloudant database ready');
     } catch (error) {
-      logger.error({ error: error.message, dbName: this.dbName }, 'Failed to ensure database');
+      logger.error({ error: error.message }, 'Database initialization failed');
       throw error;
-    }
-  }
-
-  async _createIndexes() {
-    try {
-      // Index for querying by document type and instanceId
-      const typeIndex = {
-        index: {
-          fields: ['type', 'instanceId']
-        },
-        name: 'type-instanceId-index',
-        type: 'json'
-      };
-
-      await this.client.postIndex({
-        db: this.dbName,
-        index: typeIndex.index,
-        name: typeIndex.name,
-        type: typeIndex.type
-      }).catch(err => {
-        if (err.status !== 409) throw err; // Ignore if index already exists
-      });
-
-      logger.debug('Created Cloudant indexes');
-    } catch (error) {
-      logger.warn({ error: error.message }, 'Failed to create indexes');
     }
   }
 
   async ping() {
     try {
-      await this._ensureDatabase();
-      const response = await this.client.getDbsInfo({ keys: [this.dbName] });
-      return response.result?.[0]?.info?.db_name === this.dbName;
+      const response = await this.client.getAllDbs();
+      return Array.isArray(response.result);
     } catch (error) {
       logger.error({ error: error.message }, 'Cloudant ping failed');
       return false;
     }
   }
+
+
 
   // ---------- Instances ----------
 
