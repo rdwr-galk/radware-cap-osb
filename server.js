@@ -316,39 +316,10 @@ app.use((err, req, res, _next) => {
 
   res.status(err && err.status ? err.status : 500).json({ description });
 });
-// Graceful shutdown with cleanup
+
 let server;
 
-
-
-// Start server (don't open a port during tests)
-const PORT = config.port;
-
-if (process.env.NODE_ENV !== 'test') {
-  server = app.listen(PORT, () => {
-    logger.info(
-      { 
-        port: PORT, 
-        environment: process.env.NODE_ENV || 'development',
-        storeType: config.database.type
-      },
-      'Radware CAP OSB server started'
-    );
-  });
-}
-
-// Enhanced error handling
-process.on('uncaughtException', (error) => {
-  logger.fatal({ error: error.message, stack: error.stack }, 'Uncaught exception');
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  logger.fatal({ reason, promise }, 'Unhandled promise rejection');
-  process.exit(1);
-});
-
-
+//  Graceful shutdown function
 const gracefulShutdown = (signal) => {
   logger.info(`${signal} received, shutting down gracefully`);
   
@@ -366,8 +337,35 @@ const gracefulShutdown = (signal) => {
   }
 };
 
+//  Attach signal handlers early
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-module.exports = app;
+//  Start server
+const PORT = config.port;
 
+if (process.env.NODE_ENV !== 'test') {
+  server = app.listen(PORT, () => {
+    logger.info(
+      { 
+        port: PORT, 
+        environment: process.env.NODE_ENV || 'development',
+        storeType: config.database.type
+      },
+      'Radware CAP OSB server started'
+    );
+  });
+}
+
+//  Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  logger.fatal({ error: error.message, stack: error.stack }, 'Uncaught exception');
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.fatal({ reason, promise }, 'Unhandled promise rejection');
+  process.exit(1);
+});
+
+module.exports = app;
