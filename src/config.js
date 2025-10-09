@@ -131,16 +131,17 @@ async function loadConfig() {
     },
   };
 
-  // --------- Validation ---------
-  const schema = Joi.object({
-   database: Joi.object({
+// --------- Validation ---------
+const schema = Joi.object({
+  database: Joi.object({
     type: Joi.string().valid('memory', 'cloudant').default('memory'),
     cloudant: Joi.object({
-      url: Joi.string().allow('').uri({ scheme: ['http', 'https'] }).optional().default(''),
+      // allow empty temporarily; IAM flow will populate URL
+      url: Joi.string().allow('').optional().default(''),
       database: Joi.string().default('radware-osb')
-        }),
-    }),
-  }).unknown(true);
+    })
+  })
+}).unknown(true);
 
   const { error } = schema.validate(config, { abortEarly: false });
 
