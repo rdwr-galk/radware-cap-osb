@@ -108,6 +108,43 @@ const config = {
     enableCors: toBool(getEnv('ENABLE_CORS', 'false'), false)
   }
 };
+// ---- Cloudant IAM Integration ----
+const axios = require('axios');
+
+async function generateCloudantUrlFromIAM() {
+  const apiKey = process.env.CLOUDANT_APIKEY;
+  const cloudantHost = process.env.CLOUDANT_HOST || 'https://e9cf53bd-6c6f-4446-b0f4-a2d9f261a20f-bluemix.cloudantnosqldb.appdomain.cloud';
+  if (!apiKey) return null;
+
+  console.log('Using IAM authentication for Cloudant...');
+  try {
+    const tokenResp = await axios.post(
+      'https://iam.cloud.ibm.com/identity/token',
+      new URLSearchParams({
+        grant_type: 'urn:ibm:params:oauth:grant-type:apikey',
+        apikey: apiKey
+      }),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+
+    const token = tokenResp.data.access_token;
+    if (!token) throw new Error('IAM token not returned');
+
+    // Build dynamic Cloudant URL using IAM bearer token
+    const url = `${cloudantHost}?iamBearer=${token}`;
+    process.env.CLOUDANT_URL = url;
+    console.log('Cloudant IAM token retrieved successfully');
+    return url;
+  } catch (err) {
+    console.error('Failed to get IAM token for Cloudant:', err.message);
+    return null;
+  }
+}
+
+// If CLOUDANT_URL not defined but CLOUDANT_APIKEY exists — use IAM
+if ((!process.env.CLOUDANT_URL || process.env.CLOUDANT_URL.trim() === '') && process.env.CLOUDANT_APIKEY) {
+  generateCloudantUrlFromIAM();
+}
 
 // Configuration schema validation
 const configSchema = Joi.object({
