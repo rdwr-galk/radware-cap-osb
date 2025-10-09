@@ -316,6 +316,8 @@ app.use((err, req, res, _next) => {
 
   res.status(err && err.status ? err.status : 500).json({ description });
 });
+// Graceful shutdown with cleanup
+let server;
 
 // Setup graceful shutdown handling
 setupGracefulShutdown();
@@ -347,8 +349,7 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
-// Graceful shutdown with cleanup
-let server;
+
 const gracefulShutdown = (signal) => {
   logger.info(`${signal} received, shutting down gracefully`);
   
