@@ -133,12 +133,12 @@ async function loadConfig() {
 
   // --------- Validation ---------
   const schema = Joi.object({
-    database: Joi.object({
-      type: Joi.string().valid('memory', 'cloudant').default('memory'),
-      cloudant: Joi.object({
-        url: Joi.string().uri({ scheme: ['http', 'https'] }).required(),
-        database: Joi.string().required(),
-      }),
+   database: Joi.object({
+    type: Joi.string().valid('memory', 'cloudant').default('memory'),
+    cloudant: Joi.object({
+      url: Joi.string().allow('').uri({ scheme: ['http', 'https'] }).optional().default(''),
+      database: Joi.string().default('radware-osb')
+        }),
     }),
   }).unknown(true);
 
