@@ -16,32 +16,60 @@ async function ensureCloudantUrl() {
     'https://e9cf53bd-6c6f-4446-b0f4-a2d9f261a20f-bluemix.cloudantnosqldb.appdomain.cloud';
 
   if (!apiKey) {
-    console.warn(' No CLOUDANT_APIKEY found, skipping IAM setup');
+    console.warn('⚠️  No CLOUDANT_APIKEY found, skipping IAM setup');
     return;
   }
 
-  if (process.env.CLOUDANT_URL && process.env.CLOUDANT_URL.trim() !== '') {
+  // Check if CLOUDANT_URL already has IAM bearer token
+  const existingUrl = process.env.CLOUDANT_URL;
+  if (existingUrl && existingUrl.includes('iamBearer=')) {
+    console.log('✅ CLOUDANT_URL already contains IAM bearer token');
     return;
   }
 
-  console.log('Requesting IAM token for Cloudant...');
+  // Use existing URL as base host if provided, otherwise use default host  
+  const baseHost = existingUrl || cloudantHost;
+
+  console.log('🔐 Requesting IAM token for Cloudant...');
   try {
+    // For development/testing environments with corporate firewalls, allow self-signed certificates
+    const axiosConfig = { 
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 10000 // 10 second timeout for IAM token request
+    };
+    
+    // In non-production environments, disable SSL verification if needed
+    if (process.env.NODE_ENV !== 'production' || process.env.DISABLE_SSL_VERIFY === 'true') {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+      console.log('⚠️  SSL certificate verification disabled for development');
+    }
+
     const tokenResp = await axios.post(
       'https://iam.cloud.ibm.com/identity/token',
       new URLSearchParams({
         grant_type: 'urn:ibm:params:oauth:grant-type:apikey',
         apikey: apiKey,
       }),
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      axiosConfig
     );
 
     const token = tokenResp.data.access_token;
     if (!token) throw new Error('IAM token not returned');
-    const url = `${cloudantHost}?iamBearer=${token}`;
+    
+    // Extract base host without any query parameters
+    const cleanHost = baseHost.split('?')[0];
+    const url = `${cleanHost}?iamBearer=${token}`;
     process.env.CLOUDANT_URL = url;
-    console.log(' Cloudant IAM token retrieved successfully');
+    
+    console.log('✅ Cloudant IAM token retrieved successfully');
+    console.log(`🔗 Cloudant URL configured for host: ${cleanHost}`);
   } catch (err) {
-    console.error(' Failed to get IAM token for Cloudant:', err.message);
+    console.error('❌ Failed to get IAM token for Cloudant:', err.message);
+    if (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT') {
+      console.error('   Network connectivity issue - check internet connection');
+    } else if (err.response?.status === 400) {
+      console.error('   Invalid API key - verify CLOUDANT_APIKEY environment variable');
+    }
   }
 }
 
@@ -103,6 +131,8 @@ async function loadConfig() {
       timeout: toInt(getEnv('RADWARE_TIMEOUT', '10000'), 10000),
       retries: toInt(getEnv('RADWARE_RETRIES', '3'), 3),
       gatewaySystemRoleId: getEnv('RADWARE_GATEWAY_ROLEID', 'rol_DcbbYkJMtiZmAR45'),
+      // For testing without real Radware API access
+      mockMode: toBool(getEnv('RADWARE_MOCK_MODE', 'false'), false),
     },
 
     osb: {

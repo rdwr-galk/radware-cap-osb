@@ -12,7 +12,9 @@
     "logs:pretty": "pino-pretty",
     "test": "cross-env NODE_ENV=test LOG_LEVEL=error jest --runInBand",
     "test:watch": "cross-env NODE_ENV=test LOG_LEVEL=error jest --watchAll",
-    "test:coverage": "cross-env NODE_ENV=test LOG_LEVEL=error jest --runInBand --coverage"
+    "test:coverage": "cross-env NODE_ENV=test LOG_LEVEL=error jest --runInBand --coverage",
+    "test:health": "node diagnostics/test-connections.js",
+    "diagnose": "node diagnostics/test-connections.js"
   },
   "keywords": [
     "osb",

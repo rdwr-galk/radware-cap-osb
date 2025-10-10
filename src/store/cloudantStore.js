@@ -14,7 +14,10 @@ class CloudantStore {
     this.initialized = false;
   }
 
-  async _initClient() {
+  async _initClient(retryCount = 0) {
+    const maxRetries = 3;
+    const retryDelay = 2000 * (retryCount + 1); // 2s, 4s, 6s delays
+    
     try {
       const cloudantUrl = process.env.CLOUDANT_URL;
       const cloudantApiKey = process.env.CLOUDANT_APIKEY;
@@ -24,15 +27,93 @@ class CloudantStore {
         return false;
       }
 
-      const authenticator = new IamAuthenticator({ apikey: cloudantApiKey });
+      // Extract host from URL (remove iamBearer query param for service URL)
+      const url = new URL(cloudantUrl);
+      const serviceUrl = `${url.protocol}//${url.host}`;
+      
+      logger.info({ 
+        serviceUrl, 
+        dbName: this.dbName,
+        hasIamBearer: cloudantUrl.includes('iamBearer='),
+        retryAttempt: retryCount + 1
+      }, 'Initializing Cloudant client with IAM authentication');
 
-      this.client = CloudantV1.newInstance({ authenticator });
-      this.client.setServiceUrl(cloudantUrl);
+      // Use IAM authenticator - this is the only supported method for IBM Cloudant
+      const authenticator = new IamAuthenticator({ 
+        apikey: cloudantApiKey,
+        // Allow disabling SSL in development for corporate firewalls
+        disableSslVerification: process.env.NODE_ENV !== 'production' && process.env.DISABLE_SSL_VERIFY === 'true'
+      });
 
-      logger.info({ dbName: this.dbName }, 'Cloudant client initialized successfully');
+      this.client = CloudantV1.newInstance({ 
+        authenticator,
+        serviceUrl: serviceUrl
+      });
+
+      // Test the connection immediately with a simple operation
+      await this.client.getAllDbs();
+      
+      logger.info({ dbName: this.dbName, serviceUrl }, '✅ Cloudant client initialized and tested successfully');
       return true;
     } catch (error) {
-      logger.error({ error: error.message }, 'Failed to initialize Cloudant client');
+      // Enhanced error categorization for better troubleshooting
+      let errorCategory = 'unknown';
+      let troubleshootingTip = '';
+
+      if (error.code === 'ENOTFOUND') {
+        errorCategory = 'dns';
+        troubleshootingTip = 'Check DNS resolution and network connectivity';
+      } else if (error.code === 'ECONNREFUSED') {
+        errorCategory = 'network';
+        troubleshootingTip = 'Check firewall rules and network access';
+      } else if (error.code === 'ETIMEDOUT') {
+        errorCategory = 'timeout';
+        troubleshootingTip = 'Check network latency and firewall timeouts';
+      } else if (error.message && error.message.includes('Client network socket disconnected')) {
+        errorCategory = 'ssl_handshake';
+        troubleshootingTip = 'SSL/TLS handshake failed - check corporate firewall or proxy settings';
+      } else if (error.status === 401) {
+        errorCategory = 'authentication';
+        troubleshootingTip = 'Check CLOUDANT_APIKEY validity';
+      } else if (error.status === 403) {
+        errorCategory = 'authorization';
+        troubleshootingTip = 'Check API key permissions for Cloudant service';
+      } else if (error.status >= 500) {
+        errorCategory = 'server';
+        troubleshootingTip = 'Cloudant service may be experiencing issues';
+      }
+
+      const isRetryable = retryCount < maxRetries && (
+        error.code === 'ECONNREFUSED' ||
+        error.code === 'ETIMEDOUT' ||
+        error.code === 'ENOTFOUND' ||
+        error.message?.includes('Client network socket disconnected') ||
+        (error.status >= 500 && error.status < 600)
+      );
+
+      if (isRetryable) {
+        logger.warn({ 
+          error: error.message, 
+          errorCategory,
+          retryAttempt: retryCount + 1, 
+          maxRetries,
+          nextRetryIn: retryDelay,
+          troubleshootingTip
+        }, '🔄 Cloudant initialization failed, retrying...');
+        
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        return this._initClient(retryCount + 1);
+      }
+
+      logger.error({ 
+        error: error.message, 
+        errorCategory,
+        retryAttempt: retryCount + 1,
+        code: error.code,
+        status: error.status,
+        troubleshootingTip
+      }, '❌ Failed to initialize Cloudant client after all retries');
+      
       throw error;
     }
   }
@@ -74,12 +155,29 @@ class CloudantStore {
   async ping() {
     try {
       await this._ensureInitialized();
-      if (!this.client) return false;
+      if (!this.client) {
+        logger.warn('Cloudant ping failed - client not initialized');
+        return false;
+      }
       
+      const startTime = Date.now();
       const response = await this.client.getAllDbs();
-      return Array.isArray(response.result);
+      const latency = Date.now() - startTime;
+      
+      const isHealthy = Array.isArray(response.result);
+      logger.debug({ 
+        latency, 
+        dbCount: response.result?.length || 0,
+        healthy: isHealthy 
+      }, 'Cloudant ping completed');
+      
+      return isHealthy;
     } catch (error) {
-      logger.error({ error: error.message }, 'Cloudant ping failed');
+      logger.error({ 
+        error: error.message, 
+        code: error.code,
+        status: error.status 
+      }, 'Cloudant ping failed');
       return false;
     }
   }

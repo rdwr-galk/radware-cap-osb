@@ -19,7 +19,7 @@ const { version } = require('./package.json');
 let app;
 let server;
 
-(async () => {
+async function createApp() {
   try {
     // 1) Load config BEFORE using it anywhere
     const config = await loadConfig();
@@ -374,10 +374,20 @@ let server;
       process.exit(1);
     });
 
-    // Export app (for tests or external use)
-    module.exports = app;
+    // Return the configured app
+    return app;
   } catch (err) {
     console.error('Failed to start server:', err.message);
     process.exit(1);
   }
-})();
+}
+
+// For testing, export the app creation function
+if (process.env.NODE_ENV === 'test') {
+  module.exports = createApp();
+} else {
+  // Start the server normally
+  (async () => {
+    await createApp();
+  })();
+}

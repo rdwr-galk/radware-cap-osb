@@ -13,11 +13,25 @@ class RadwareApi {
     this.apiToken = config.radware.apiToken;
     this.timeout = config.radware.timeout || 10000;
     this.retries = config.radware.retries || 3;
+    this.mockMode = config.radware.mockMode || false;
+
+    // Validate critical configuration
+    if (!this.apiBase) {
+      throw new Error('RADWARE_API_BASE_URL is required but not configured');
+    }
+    
+    if (!this.apiToken && !this.mockMode) {
+      logger.warn('RADWARE_API_TOKEN not configured - API calls may fail with authentication errors');
+    }
 
     const defaultHeaders = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.apiToken}`
+      'Content-Type': 'application/json'
     };
+    
+    // Only add Authorization header if token is available
+    if (this.apiToken) {
+      defaultHeaders['Authorization'] = `Bearer ${this.apiToken}`;
+    }
 
     if (config.radware.gatewaySystemRoleId) {
       defaultHeaders['x-role-ids'] = config.radware.gatewaySystemRoleId;
@@ -29,7 +43,14 @@ class RadwareApi {
       headers: defaultHeaders
     });
 
-    logger.info({ apiBase: this.apiBase, timeout: this.timeout }, 'RadwareApi initialized');
+    logger.info({ 
+      apiBase: this.apiBase, 
+      timeout: this.timeout, 
+      retries: this.retries,
+      hasToken: !!this.apiToken,
+      hasRoleId: !!config.radware.gatewaySystemRoleId,
+      mockMode: this.mockMode
+    }, '🔧 RadwareApi initialized');
   }
 
   // === Factory ===
@@ -40,15 +61,71 @@ class RadwareApi {
 
   // === Basic connectivity check ===
   async ping() {
+    const startTime = Date.now();
+    
+    // Mock mode for testing without real API access
+    if (this.mockMode) {
+      const latency = Date.now() - startTime;
+      logger.info({ 
+        apiBase: this.apiBase,
+        latency,
+        mockMode: true
+      }, '🎭 Radware API ping (mock mode) - simulated success');
+      return true;
+    }
+    
     try {
-      await this.makeRequest({
-        method: 'POST',
-        url: '/api/sdcc/system/entity/accounts?databaseType=ORIGIN',
-        data: { criteria: [], projection: ['id'], page: 0, size: 1 }
-      });
+      // First try a simple lightweight endpoint if available, fallback to accounts query
+      let response;
+      
+      // Try a simple GET request first (less likely to fail due to auth/data issues)
+      try {
+        response = await this.client.get('/status');
+      } catch (statusError) {
+        // If /status endpoint doesn't exist, fallback to accounts query
+        logger.debug('Status endpoint not available, trying accounts query');
+        response = await this.makeRequest({
+          method: 'POST',
+          url: '/api/sdcc/system/entity/accounts?databaseType=ORIGIN',
+          data: { criteria: [], projection: ['id'], page: 0, size: 1 }
+        });
+      }
+
+      const latency = Date.now() - startTime;
+      logger.debug({ 
+        apiBase: this.apiBase,
+        latency,
+        hasToken: !!this.apiToken,
+        status: response?.status || 'success'
+      }, '✅ Radware API ping successful');
+      
       return true;
     } catch (error) {
-      logger.warn({ error: error.message }, 'Radware API ping failed');
+      const latency = Date.now() - startTime;
+      const errorDetails = {
+        apiBase: this.apiBase,
+        latency,
+        hasToken: !!this.apiToken,
+        error: error.message,
+        status: error.status,
+        code: error.code
+      };
+
+      // Categorize the error for better diagnostics
+      if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+        errorDetails.category = 'network';
+        logger.warn(errorDetails, '🌐 Radware API ping failed - network connectivity issue');
+      } else if (error.status === 401 || error.status === 403) {
+        errorDetails.category = 'authentication';
+        logger.warn(errorDetails, '🔐 Radware API ping failed - authentication issue');
+      } else if (error.status >= 500) {
+        errorDetails.category = 'server';
+        logger.warn(errorDetails, '🔥 Radware API ping failed - server error');
+      } else {
+        errorDetails.category = 'unknown';
+        logger.warn(errorDetails, '❌ Radware API ping failed');
+      }
+      
       return false;
     }
   }
